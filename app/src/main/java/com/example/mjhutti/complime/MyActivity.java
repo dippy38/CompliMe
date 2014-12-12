@@ -3,21 +3,41 @@ package com.example.mjhutti.complime;
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
-import android.content.Context;
+import android.content.Intent;
+import android.content.IntentSender;
 import android.os.Bundle;
 import android.util.Patterns;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
+import android.support.v4.app.FragmentActivity;
+import com.google.android.gms.common.ConnectionResult;
+import com.google.android.gms.common.GooglePlayServicesClient.ConnectionCallbacks;
+import com.google.android.gms.common.GooglePlayServicesClient.OnConnectionFailedListener;
+import com.google.android.gms.common.Scopes;
+import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.plus.Plus;
 
 import java.util.regex.Pattern;
 
 
 public class MyActivity extends Activity {
 
-    @Override
+
+    final int RC_SIGN_IN = 0;
+    GoogleApiClient mGoogleApiClient;
+    boolean mIntentInProgress;
+    String scopes = "oauth2:email " + Scopes.PLUS_LOGIN;
+
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+     mGoogleApiClient = new GoogleApiClient.Builder(getApplicationContext())
+            .addApi(Plus.API)
+            .addScope(Plus.SCOPE_PLUS_LOGIN)
+            .build();
+
 
         Pattern emailPattern = Patterns.EMAIL_ADDRESS; // API level 8
         Account[] accounts = AccountManager.get(getApplicationContext()).getAccountsByType("com.google");
@@ -30,7 +50,6 @@ public class MyActivity extends Activity {
 
 
         }
-
 
         setContentView(R.layout.activity_my);
     }
@@ -58,4 +77,51 @@ public class MyActivity extends Activity {
         }
         return super.onOptionsItemSelected(item);
     }
+    protected void onStart() {
+        super.onStart();
+        mGoogleApiClient.connect();
+    }
+
+    protected void onStop() {
+        super.onStop();
+
+        if (mGoogleApiClient.isConnected()) {
+            mGoogleApiClient.disconnect();
+        }
+    }
+
+    public void onConnectionFailed(ConnectionResult result) {
+        if (!mIntentInProgress && result.hasResolution()) {
+            try {
+                mIntentInProgress = true;
+                startIntentSenderForResult(result.getResolution().getIntentSender(),
+                        RC_SIGN_IN, null, 0, 0, 0);
+            } catch (IntentSender.SendIntentException e) {
+                // The intent was canceled before it was sent.  Return to the default
+                // state and attempt to connect to get an updated ConnectionResult.
+                mIntentInProgress = false;
+                mGoogleApiClient.connect();
+            }
+        }
+    }
+
+    public void onConnected(Bundle connectionHint) {
+        // We've resolved any connection errors.  mGoogleApiClient can be used to
+        // access Google APIs on behalf of the user.
+    }
+
+    protected void onActivityResult(int requestCode, int responseCode, Intent intent) {
+        if (requestCode == RC_SIGN_IN) {
+            mIntentInProgress = false;
+
+            if (!mGoogleApiClient.isConnecting()) {
+                mGoogleApiClient.connect();
+            }
+        }
+    }
+
+    public void onConnectionSuspended(int cause) {
+        mGoogleApiClient.connect();
+    }
+
 }
